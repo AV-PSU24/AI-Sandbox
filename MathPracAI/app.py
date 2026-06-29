@@ -42,13 +42,59 @@ class Problem:
 
     @property
     def question(self):
-        if self.topic == "evaluating_functions":
-            return f"{self.display_equation}\n\n{self.prompt}"
-        return self.metadata.get("current_display", self.prompt)
+        return "\n\n".join(part for part in (self.display_equation, self.prompt) if part)
 
     @property
     def answer(self):
         return self.correct_answer
+
+    def to_dict(self):
+        return {
+            "topic": self.topic,
+            "problem_type": self.problem_type,
+            "difficulty": self.difficulty,
+            "display_equation": self.display_equation,
+            "prompt": self.prompt,
+            "answer_fields": self.answer_fields,
+            "correct_answer": self.correct_answer,
+            "acceptable_answers": self.acceptable_answers,
+            "hint": self.hint,
+            "solution": self.solution,
+            "metadata": self.metadata,
+            "assets": self.assets,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        if not isinstance(data, dict):
+            data = {}
+
+        def text_field(name):
+            value = data.get(name, "")
+            return "" if value is None else str(value)
+
+        correct_answer = text_field("correct_answer")
+        acceptable_answers = data.get("acceptable_answers") or [correct_answer]
+        if not isinstance(acceptable_answers, list):
+            acceptable_answers = [acceptable_answers]
+        answer_fields = data.get("answer_fields")
+        if not isinstance(answer_fields, list):
+            answer_fields = [{"name": "answer", "label": "Answer", "type": "text"}]
+
+        return cls(
+            topic=text_field("topic"),
+            problem_type=text_field("problem_type"),
+            difficulty=text_field("difficulty"),
+            display_equation=text_field("display_equation"),
+            prompt=text_field("prompt"),
+            answer_fields=answer_fields,
+            correct_answer=correct_answer,
+            acceptable_answers=[str(answer) for answer in acceptable_answers],
+            hint=text_field("hint"),
+            solution=text_field("solution"),
+            metadata=data.get("metadata") if isinstance(data.get("metadata"), dict) else {},
+            assets=data.get("assets") if isinstance(data.get("assets"), list) else [],
+        )
 
 
 def signed(value):
@@ -239,7 +285,6 @@ def domain_and_range(difficulty):
         metadata={
             "function_family": "square_root",
             "domain_start": start,
-            "current_display": f"State the domain of {equation}. Use x>=a format.",
         },
     )
 
@@ -263,9 +308,7 @@ def parent_functions(difficulty):
         acceptable_answers=[answer],
         hint="Ignore shifts, stretches, and reflections. Focus on the core shape.",
         solution=f"The core function family is {answer}.",
-        metadata={
-            "current_display": f"Identify the parent function family for {equation}.",
-        },
+        metadata={},
     )
 
 
@@ -329,6 +372,10 @@ def encoded_json(value):
     return escape(json.dumps(value))
 
 
+def encoded_problem(problem):
+    return encoded_json(problem.to_dict())
+
+
 def decoded_json(value, fallback):
     try:
         return json.loads(value)
@@ -337,33 +384,32 @@ def decoded_json(value, fallback):
 
 
 def problem_from_form(data):
-    question = data.get("question", "")
-    answer = data.get("correct_answer") or data.get("answer", "")
-    metadata = decoded_json(data.get("metadata"), {})
-    problem_topic = data.get("problem_topic") or data.get("topic", "")
-    if question and problem_topic != "evaluating_functions" and "current_display" not in metadata:
-        metadata["current_display"] = question
+    return Problem.from_dict(decoded_json(data.get("problem_json"), {}))
 
-    return Problem(
-        topic=problem_topic,
-        problem_type=data.get("problem_type", ""),
-        difficulty=data.get("problem_difficulty") or data.get("difficulty", ""),
-        display_equation=data.get("display_equation", ""),
-        prompt=data.get("prompt") or question,
-        answer_fields=decoded_json(data.get("answer_fields"), [{"name": "answer", "label": "Answer", "type": "text"}]),
-        correct_answer=str(answer),
-        acceptable_answers=decoded_json(data.get("acceptable_answers"), [str(answer)]),
-        hint=data.get("hint", ""),
-        solution=data.get("solution", ""),
-        metadata=metadata,
-        assets=decoded_json(data.get("assets"), []),
-    )
+
+def render_asset(asset):
+    if not isinstance(asset, dict):
+        return ""
+    asset_type = asset.get("type", "")
+    if asset_type == "image" and asset.get("src"):
+        alt = asset.get("alt", "")
+        return f'<img src="{escape(asset["src"])}" alt="{escape(alt)}">'
+    if asset_type == "text" and asset.get("content"):
+        return escape(asset["content"])
+    return ""
 
 
 def render_problem_display(problem):
-    if problem.topic == "evaluating_functions":
-        return f"{escape(problem.display_equation)}<br><br>{escape(problem.prompt)}"
-    return escape(problem.question)
+    parts = []
+    if problem.display_equation:
+        parts.append(escape(problem.display_equation))
+    if problem.prompt:
+        parts.append(escape(problem.prompt))
+    for asset in problem.assets:
+        rendered_asset = render_asset(asset)
+        if rendered_asset:
+            parts.append(rendered_asset)
+    return "<br><br>".join(parts)
 
 
 def select_options(options, selected):
@@ -430,7 +476,7 @@ def reset_for_new_problem(state):
     state["feedback_type"] = "empty"
 
 
-def render_page(state):
+def page_context(state):
     unit = state.get("unit", "unit1")
     if unit not in UNITS:
         unit = "unit1"
@@ -449,29 +495,159 @@ def render_page(state):
     hint_visible = state.get("hint_visible", "") == "true"
     solution_visible = state.get("solution_visible", "") == "true"
     answered = state.get("answered", "") == "true"
-    answer_value = state.get("answer", "")
     correct_count = count_value(state, "correct_count")
     hint_count = count_value(state, "hint_count")
     incorrect_count = count_value(state, "incorrect_count")
     skip_count = count_value(state, "skip_count")
     generated = state.get("generated", "") == "true"
-    hint_disabled = " disabled" if hint_visible or solution_visible or answered else ""
-    solution_disabled = " disabled" if solution_visible or answered else ""
-    check_disabled = " disabled" if solution_visible else ""
-    next_disabled = "" if answered or solution_visible else " disabled"
-    generate_disabled = " disabled" if generated else ""
 
     if problem is None:
         problem = GENERATORS[topic](difficulty)
-    if not answer_value:
-        answer_value = problem.answer
 
+    return {
+        "unit": unit,
+        "topic": topic,
+        "difficulty": difficulty,
+        "problem": problem,
+        "feedback": feedback,
+        "feedback_type": feedback_type,
+        "hint_visible": hint_visible,
+        "solution_visible": solution_visible,
+        "answered": answered,
+        "correct_count": correct_count,
+        "hint_count": hint_count,
+        "incorrect_count": incorrect_count,
+        "skip_count": skip_count,
+        "generated": generated,
+    }
+
+
+def render_control_panel(context):
+    unit = context["unit"]
+    topic = context["topic"]
+    difficulty = context["difficulty"]
     unit_options = tuple((value, data["label"]) for value, data in UNITS.items())
     topic_options = tuple(UNITS[unit]["topics"])
     difficulty_options = tuple((item, item.title()) for item in DIFFICULTIES)
     unit_dropdown = custom_dropdown("unit", "Unit", unit_options, unit)
     topic_dropdown = custom_dropdown("topic", "Topic", topic_options, topic)
     difficulty_dropdown = custom_dropdown("difficulty", "Difficulty", difficulty_options, difficulty)
+    generate_disabled = " disabled" if context["generated"] else ""
+
+    return f"""      <form class="control-panel" action="/generate" method="get">
+        <div class="panel-title">
+          <span>MathPrac AI</span>
+        </div>
+        <input type="hidden" name="correct_count" value="{context["correct_count"]}">
+        <input type="hidden" name="hint_count" value="{context["hint_count"]}">
+        <input type="hidden" name="incorrect_count" value="{context["incorrect_count"]}">
+        <input type="hidden" name="skip_count" value="{context["skip_count"]}">
+        {unit_dropdown}
+        {topic_dropdown}
+        {difficulty_dropdown}
+        <button type="submit" data-generate-button{generate_disabled}>Generate Practice Problems</button>
+      </form>"""
+
+
+def render_answer_form(context):
+    unit = context["unit"]
+    topic = context["topic"]
+    difficulty = context["difficulty"]
+    problem = context["problem"]
+    hint_visible = context["hint_visible"]
+    solution_visible = context["solution_visible"]
+    answered = context["answered"]
+    generated = context["generated"]
+    correct_checked = context["feedback_type"] == "correct"
+    hint_disabled = " disabled" if hint_visible or solution_visible or correct_checked else ""
+    solution_disabled = " disabled" if solution_visible or correct_checked else ""
+    skip_disabled = " disabled" if solution_visible or correct_checked else ""
+    check_disabled = " disabled" if solution_visible or correct_checked else ""
+    next_disabled = "" if correct_checked or solution_visible else " disabled"
+
+    return f"""        <form class="answer-panel" action="/check" method="post">
+          <input type="hidden" name="unit" value="{escape(unit)}">
+          <input type="hidden" name="topic" value="{escape(topic)}">
+          <input type="hidden" name="difficulty" value="{escape(difficulty)}">
+          <input type="hidden" name="problem_json" value="{encoded_problem(problem)}">
+          <input type="hidden" name="hint_visible" value="{str(hint_visible).lower()}">
+          <input type="hidden" name="solution_visible" value="{str(solution_visible).lower()}">
+          <input type="hidden" name="answered" value="{str(answered).lower()}">
+          <input type="hidden" name="correct_count" value="{context["correct_count"]}">
+          <input type="hidden" name="hint_count" value="{context["hint_count"]}">
+          <input type="hidden" name="incorrect_count" value="{context["incorrect_count"]}">
+          <input type="hidden" name="skip_count" value="{context["skip_count"]}">
+          <input type="hidden" name="generated" value="{str(generated).lower()}">
+          <label for="user_answer">answer_input</label>
+          <div class="answer-row">
+            <input id="user_answer" name="user_answer" type="text" autocomplete="off" placeholder="type answer">
+            <button name="action" value="check" type="submit"{check_disabled}>Check</button>
+          </div>
+          <div class="utility-row">
+            <button name="action" value="hint" type="submit"{hint_disabled}>Hint</button>
+            <button name="action" value="skip" type="submit"{skip_disabled}>Skip</button>
+            <button name="action" value="solution" type="submit"{solution_disabled}>Solution</button>
+            <button name="action" value="next" type="submit"{next_disabled}>Next Problem</button>
+          </div>
+        </form>"""
+
+
+def render_feedback(context):
+    return f"""        <div class="feedback {escape(context["feedback_type"])}">{escape(context["feedback"])}</div>"""
+
+
+def render_help_stack(context):
+    problem = context["problem"]
+    hint_visible = context["hint_visible"]
+    solution_visible = context["solution_visible"]
+
+    return f"""        <div class="help-stack">
+          {f'<div class="help-box hint-box">{escape(problem.hint)}</div>' if hint_visible else ''}
+          {f'<div class="help-box solution-box">{escape(problem.solution)} Answer: {escape(problem.answer)}</div>' if solution_visible else ''}
+        </div>"""
+
+
+def render_stats(context):
+    return f"""        <div class="stats-panel" aria-label="Practice stats">
+          <span class="stat-correct">Correct: {context["correct_count"]}</span>
+          <span class="stat-hints">Hints: {context["hint_count"]}</span>
+          <span class="stat-incorrect">Incorrect: {context["incorrect_count"]}</span>
+          <span class="stat-skips">Skips: {context["skip_count"]}</span>
+        </div>"""
+
+
+def render_problem_panel(context):
+    unit = context["unit"]
+    topic = context["topic"]
+    difficulty = context["difficulty"]
+    problem = context["problem"]
+    answer_form = render_answer_form(context)
+    feedback = render_feedback(context)
+    help_stack = render_help_stack(context)
+    stats = render_stats(context)
+
+    return f"""      <section class="problem-panel" aria-live="polite">
+        <div class="badges">
+          <span>Algebra 2</span>
+          <span data-badge="unit">{escape(unit_label(unit))}</span>
+          <span data-badge="topic">{escape(topic_label(topic))}</span>
+          <span data-badge="difficulty">{escape(difficulty.title())}</span>
+        </div>
+
+        <h1>{render_problem_display(problem)}</h1>
+
+{answer_form}
+
+{feedback}
+{help_stack}
+{stats}
+      </section>"""
+
+
+def render_page(state):
+    context = page_context(state)
+    control_panel = render_control_panel(context)
+    problem_panel = render_problem_panel(context)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -485,81 +661,9 @@ def render_page(state):
 <body>
   <main class="app-frame">
     <section class="generator">
-      <form class="control-panel" action="/generate" method="get">
-        <div class="panel-title">
-          <span>MathPrac AI</span>
-        </div>
-        <input type="hidden" name="correct_count" value="{correct_count}">
-        <input type="hidden" name="hint_count" value="{hint_count}">
-        <input type="hidden" name="incorrect_count" value="{incorrect_count}">
-        <input type="hidden" name="skip_count" value="{skip_count}">
-        {unit_dropdown}
-        {topic_dropdown}
-        {difficulty_dropdown}
-        <button type="submit" data-generate-button{generate_disabled}>Generate Practice Problems</button>
-      </form>
+{control_panel}
 
-      <section class="problem-panel" aria-live="polite">
-        <div class="badges">
-          <span>Algebra 2</span>
-          <span data-badge="unit">{escape(unit_label(unit))}</span>
-          <span data-badge="topic">{escape(topic_label(topic))}</span>
-          <span data-badge="difficulty">{escape(difficulty.title())}</span>
-        </div>
-
-        <h1>{render_problem_display(problem)}</h1>
-
-        <form class="answer-panel" action="/check" method="post">
-          <input type="hidden" name="unit" value="{escape(unit)}">
-          <input type="hidden" name="topic" value="{escape(topic)}">
-          <input type="hidden" name="difficulty" value="{escape(difficulty)}">
-          <input type="hidden" name="question" value="{escape(problem.question)}">
-          <input type="hidden" name="problem_topic" value="{escape(problem.topic)}">
-          <input type="hidden" name="problem_type" value="{escape(problem.problem_type)}">
-          <input type="hidden" name="problem_difficulty" value="{escape(problem.difficulty)}">
-          <input type="hidden" name="display_equation" value="{escape(problem.display_equation)}">
-          <input type="hidden" name="prompt" value="{escape(problem.prompt)}">
-          <input type="hidden" name="answer_fields" value="{encoded_json(problem.answer_fields)}">
-          <input type="hidden" name="correct_answer" value="{escape(problem.correct_answer)}">
-          <input type="hidden" name="acceptable_answers" value="{encoded_json(problem.acceptable_answers)}">
-          <input type="hidden" name="metadata" value="{encoded_json(problem.metadata)}">
-          <input type="hidden" name="assets" value="{encoded_json(problem.assets)}">
-          <input type="hidden" name="answer" value="{escape(answer_value)}">
-          <input type="hidden" name="hint" value="{escape(problem.hint)}">
-          <input type="hidden" name="solution" value="{escape(problem.solution)}">
-          <input type="hidden" name="hint_visible" value="{str(hint_visible).lower()}">
-          <input type="hidden" name="solution_visible" value="{str(solution_visible).lower()}">
-          <input type="hidden" name="answered" value="{str(answered).lower()}">
-          <input type="hidden" name="correct_count" value="{correct_count}">
-          <input type="hidden" name="hint_count" value="{hint_count}">
-          <input type="hidden" name="incorrect_count" value="{incorrect_count}">
-          <input type="hidden" name="skip_count" value="{skip_count}">
-          <input type="hidden" name="generated" value="{str(generated).lower()}">
-          <label for="user_answer">answer_input</label>
-          <div class="answer-row">
-            <input id="user_answer" name="user_answer" type="text" autocomplete="off" placeholder="type answer">
-            <button name="action" value="check" type="submit"{check_disabled}>Check</button>
-          </div>
-          <div class="utility-row">
-            <button name="action" value="hint" type="submit"{hint_disabled}>Hint</button>
-            <button name="action" value="skip" type="submit">Skip</button>
-            <button name="action" value="solution" type="submit"{solution_disabled}>Solution</button>
-            <button name="action" value="next" type="submit"{next_disabled}>Next Problem</button>
-          </div>
-        </form>
-
-        <div class="feedback {escape(feedback_type)}">{escape(feedback)}</div>
-        <div class="help-stack">
-          {f'<div class="help-box hint-box">{escape(problem.hint)}</div>' if hint_visible else ''}
-          {f'<div class="help-box solution-box">{escape(problem.solution)} Answer: {escape(problem.answer)}</div>' if solution_visible else ''}
-        </div>
-        <div class="stats-panel" aria-label="Practice stats">
-          <span class="stat-correct">Correct: {correct_count}</span>
-          <span class="stat-hints">Hints: {hint_count}</span>
-          <span class="stat-incorrect">Incorrect: {incorrect_count}</span>
-          <span class="stat-skips">Skips: {skip_count}</span>
-        </div>
-      </section>
+{problem_panel}
     </section>
   </main>
 </body>
