@@ -3,6 +3,81 @@ from html import escape
 import json
 
 
+DEFAULT_GRAPH_CONFIG = {
+    "enabled": False,
+    "type": "none",
+    "equation": "",
+    "x_min": -10,
+    "x_max": 10,
+    "y_min": -10,
+    "y_max": 10,
+    "points": [],
+    "features": {},
+}
+
+
+def no_graph_config():
+    config = DEFAULT_GRAPH_CONFIG.copy()
+    config["points"] = list(DEFAULT_GRAPH_CONFIG["points"])
+    config["features"] = dict(DEFAULT_GRAPH_CONFIG["features"])
+    return config
+
+
+def json_serializable(value, fallback):
+    try:
+        json.dumps(value)
+        return value
+    except (TypeError, ValueError):
+        return fallback
+
+
+def graph_bound(value, fallback):
+    if isinstance(value, bool):
+        return fallback
+    if isinstance(value, (int, float)):
+        return value
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    return int(number) if number.is_integer() else number
+
+
+def function_graph_config(equation, x_min=-10, x_max=10, y_min=-10, y_max=10, points=None, features=None):
+    config = no_graph_config()
+    config.update(
+        {
+            "enabled": True,
+            "type": "function",
+            "equation": str(equation),
+            "x_min": graph_bound(x_min, DEFAULT_GRAPH_CONFIG["x_min"]),
+            "x_max": graph_bound(x_max, DEFAULT_GRAPH_CONFIG["x_max"]),
+            "y_min": graph_bound(y_min, DEFAULT_GRAPH_CONFIG["y_min"]),
+            "y_max": graph_bound(y_max, DEFAULT_GRAPH_CONFIG["y_max"]),
+            "points": json_serializable(points, []) if isinstance(points, list) else [],
+            "features": json_serializable(features, {}) if isinstance(features, dict) else {},
+        }
+    )
+    return config
+
+
+def normalized_graph_config(value):
+    if not isinstance(value, dict) or not value.get("enabled"):
+        return no_graph_config()
+
+    config = function_graph_config(
+        value.get("equation", ""),
+        value.get("x_min", -10),
+        value.get("x_max", 10),
+        value.get("y_min", -10),
+        value.get("y_max", 10),
+        value.get("points", []),
+        value.get("features", {}),
+    )
+    config["type"] = str(value.get("type") or "function")
+    return config
+
+
 @dataclass
 class Problem:
     topic: str
@@ -17,6 +92,10 @@ class Problem:
     solution: str = ""
     metadata: dict = field(default_factory=dict)
     assets: list[dict] = field(default_factory=list)
+    graph_config: dict = field(default_factory=no_graph_config)
+
+    def __post_init__(self):
+        self.graph_config = normalized_graph_config(self.graph_config)
 
     @property
     def question(self):
@@ -40,6 +119,7 @@ class Problem:
             "solution": self.solution,
             "metadata": self.metadata,
             "assets": self.assets,
+            "graph_config": self.graph_config,
         }
 
     @classmethod
@@ -64,6 +144,7 @@ class Problem:
         assets = data.get("assets")
         if not isinstance(assets, list):
             assets = []
+        graph_config = normalized_graph_config(data.get("graph_config"))
 
         return cls(
             topic=text_field("topic"),
@@ -78,6 +159,7 @@ class Problem:
             solution=text_field("solution"),
             metadata=metadata,
             assets=assets,
+            graph_config=graph_config,
         )
 
 

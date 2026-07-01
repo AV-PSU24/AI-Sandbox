@@ -9,7 +9,7 @@ from formatters import (
     format_quadratic_vertex_equation,
     format_square_root_equation,
 )
-from models import Problem
+from models import Problem, function_graph_config, no_graph_config
 
 
 @dataclass(frozen=True)
@@ -164,6 +164,62 @@ def equation_for(function_data):
     return format_square_root_equation(function_data)
 
 
+def signed_raw(value):
+    return f"+{value}" if value > 0 else str(value)
+
+
+def raw_shift_expression(h):
+    if h == 0:
+        return "x"
+    return f"x-{h}" if h > 0 else f"x+{abs(h)}"
+
+
+def raw_coefficient_prefix(coefficient):
+    if coefficient == 1:
+        return ""
+    if coefficient == -1:
+        return "-"
+    return str(coefficient)
+
+
+def raw_polynomial_term(coefficient, exponent):
+    absolute = abs(coefficient)
+    if exponent == 0:
+        return str(absolute)
+    if exponent == 1:
+        return "x" if absolute == 1 else f"{absolute}x"
+    return f"x^{exponent}" if absolute == 1 else f"{absolute}x^{exponent}"
+
+
+def raw_polynomial_expression(coefficients):
+    degree = len(coefficients) - 1
+    pieces = []
+    for index, coefficient in enumerate(coefficients):
+        if coefficient == 0:
+            continue
+        body = raw_polynomial_term(coefficient, degree - index)
+        if not pieces:
+            pieces.append(f"-{body}" if coefficient < 0 else body)
+        else:
+            pieces.append(f"-{body}" if coefficient < 0 else f"+{body}")
+    return "".join(pieces) if pieces else "0"
+
+
+def raw_function_expression(function_data):
+    family = function_data["family"]
+    if family == "linear":
+        expression = raw_polynomial_expression([function_data["m"], function_data["b"]])
+    elif family == "quadratic":
+        expression = f'{raw_coefficient_prefix(function_data["a"])}({raw_shift_expression(function_data["h"])})^2'
+    elif family == "absolute_value":
+        expression = f'{raw_coefficient_prefix(function_data["a"])}abs({raw_shift_expression(function_data["h"])})'
+    else:
+        expression = f'{raw_coefficient_prefix(function_data["a"])}sqrt({raw_shift_expression(function_data["h"])})'
+
+    k = function_data.get("k", 0)
+    return f"{expression}{signed_raw(k)}" if k else expression
+
+
 def create_problem(
     topic,
     problem_type,
@@ -177,6 +233,7 @@ def create_problem(
     solution,
     metadata=None,
     assets=None,
+    graph_config=None,
 ):
     answers = [str(answer) for answer in acceptable_answers]
     correct = str(correct_answer)
@@ -196,6 +253,7 @@ def create_problem(
         solution=solution,
         metadata=metadata or {},
         assets=assets or [],
+        graph_config=graph_config if graph_config is not None else no_graph_config(),
     )
 
 
@@ -219,6 +277,7 @@ def render_evaluating_functions_problem(data, difficulty):
         hint="Substitute the input value anywhere x appears.",
         solution=f"f({input_value}) = {substitution} = {correct_answer}.",
         metadata=data,
+        graph_config=function_graph_config(raw_polynomial_expression(coefficients)),
     )
 
 
@@ -271,6 +330,7 @@ def render_domain_range_problem(data, difficulty):
         hint=domain_range_hint(function_data),
         solution=domain_range_solution(function_data, data["domain"], data["range"]),
         metadata=data,
+        graph_config=function_graph_config(raw_function_expression(function_data)),
     )
 
 
@@ -315,6 +375,7 @@ def parent_functions(difficulty):
         hint="Ignore shifts, stretches, and reflections. Focus on the core shape.",
         solution=f"The core function family is {answer}.",
         metadata={},
+        graph_config=no_graph_config(),
     )
 
 
