@@ -168,8 +168,8 @@ def render_answer_form(context):
     hint_disabled = " disabled" if hint_visible or solution_visible or correct_checked else ""
     solution_disabled = " disabled" if solution_visible or correct_checked else ""
     skip_disabled = " disabled" if solution_visible or correct_checked else ""
-    check_disabled = " disabled" if solution_visible or correct_checked else ""
-    next_disabled = "" if correct_checked or solution_visible else " disabled"
+    primary_action = "next" if correct_checked or solution_visible else "check"
+    primary_label = "Next Problem" if primary_action == "next" else "Check"
     answer_controls = render_answer_controls(problem)
 
     return f"""        <form class="answer-panel" action="/check" method="post">
@@ -187,13 +187,12 @@ def render_answer_form(context):
           <input type="hidden" name="generated" value="{str(generated).lower()}">
           <div class="answer-row">
             {answer_controls}
-            <button name="action" value="check" type="submit"{check_disabled}>Check</button>
           </div>
           <div class="utility-row">
             <button name="action" value="hint" type="submit"{hint_disabled}>Hint</button>
             <button name="action" value="skip" type="submit"{skip_disabled}>Skip</button>
             <button name="action" value="solution" type="submit"{solution_disabled}>Solution</button>
-            <button name="action" value="next" type="submit"{next_disabled}>Next Problem</button>
+            <button name="action" value="{primary_action}" type="submit">{primary_label}</button>
           </div>
         </form>"""
 
