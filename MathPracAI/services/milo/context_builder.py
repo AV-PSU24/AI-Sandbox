@@ -1,4 +1,4 @@
-from services.ai_tutor.models import PromptComponent
+from services.milo.models import PromptComponent
 
 
 def build_context_components(session):

@@ -4,7 +4,7 @@ import re
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PROMPT_ROOT = ROOT / "prompts" / "ai_tutor"
+PROMPT_ROOT = ROOT / "prompts" / "milo"
 
 
 class RuntimeState(Enum):

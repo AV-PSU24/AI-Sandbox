@@ -1,12 +1,12 @@
 from flask import Blueprint, jsonify, request
 
-from services.ai_tutor.service import AITutorError, create_tutor_reply
+from services.milo.service import AITutorError, create_tutor_reply
 
 
-ai_tutor_bp = Blueprint("ai_tutor", __name__, url_prefix="/ai-tutor")
+milo_bp = Blueprint("milo", __name__, url_prefix="/ai-tutor")
 
 
-@ai_tutor_bp.post("/chat")
+@milo_bp.post("/chat")
 def chat():
     data = request.get_json(silent=True) or {}
     student_message = str(data.get("studentMessage") or "").strip()

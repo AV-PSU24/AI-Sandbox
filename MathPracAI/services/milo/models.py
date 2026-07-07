@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field, replace
 from typing import Any, Optional
 
-from llm.llm_client import LLMResponse
-from services.ai_tutor.runtime_builder import RuntimeState
+from llm.client import LLMResponse
+from services.milo.runtime_builder import RuntimeState
 
 
 @dataclass(frozen=True)

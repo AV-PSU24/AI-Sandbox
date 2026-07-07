@@ -1,13 +1,13 @@
 import os
 from pathlib import Path
 
-from services.ai_tutor.context_builder import build_context_components
-from services.ai_tutor.models import PromptComponent
-from services.ai_tutor.runtime_builder import build_runtime_prompt
+from services.milo.context_builder import build_context_components
+from services.milo.models import PromptComponent
+from services.milo.runtime_builder import build_runtime_prompt
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PROMPT_ROOT = ROOT / "prompts" / "ai_tutor"
+PROMPT_ROOT = ROOT / "prompts" / "milo"
 SYSTEM_PROMPT_PATH = PROMPT_ROOT / "system.txt"
 DEFAULT_DEBUG_PROMPT_PATH = ROOT / "debug" / "latest_prompt.txt"
 

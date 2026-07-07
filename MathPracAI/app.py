@@ -3,9 +3,9 @@ from pathlib import Path
 
 from flask import Flask, send_from_directory
 
-from routes.ai_tutor_routes import ai_tutor_bp
 from routes.auth_routes import auth_bp
 from routes.dashboard_routes import dashboard_bp
+from routes.milo_routes import milo_bp
 from routes.practice_routes import practice_bp
 
 ROOT = Path(__file__).parent
@@ -18,7 +18,7 @@ def create_app():
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
-    app.register_blueprint(ai_tutor_bp)
+    app.register_blueprint(milo_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(practice_bp)
