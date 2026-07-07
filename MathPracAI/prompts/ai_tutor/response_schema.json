@@ -1,0 +1,23 @@
+{
+  "description": "Planned AI Tutor response contract.",
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "reply": {
+      "type": "string"
+    },
+    "helpStatus": {
+      "type": "string",
+      "enum": ["none", "hint", "guided", "solution"]
+    },
+    "diagnosis": {
+      "type": ["object", "null"]
+    },
+    "suggestedActions": {
+      "type": "array"
+    }
+  },
+  "required": ["ok", "reply", "helpStatus", "diagnosis", "suggestedActions"]
+}

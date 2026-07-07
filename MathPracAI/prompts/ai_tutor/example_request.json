@@ -1,0 +1,24 @@
+{
+  "studentMessage": "I am not sure how to evaluate this function.",
+  "unit": "Algebra 2",
+  "topic": "Evaluating Functions",
+  "problem": {
+    "prompt": "Evaluate f(3) for f(x) = 2x + 5.",
+    "answerFields": [
+      {
+        "name": "value",
+        "label": "f(3)"
+      }
+    ]
+  },
+  "attempts": [
+    {
+      "value": "8",
+      "correct": false
+    }
+  ],
+  "chatHistory": [],
+  "attemptCount": 1,
+  "solutionUnlocked": false,
+  "helpStatus": "none"
+}

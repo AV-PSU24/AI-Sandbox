@@ -1,0 +1,42 @@
+{
+  "description": "Planned future AI Tutor context shape. This file documents contract fields only and is not live runtime data.",
+  "type": "object",
+  "properties": {
+    "studentMessage": {
+      "type": "string",
+      "description": "The student's latest message to the AI Tutor."
+    },
+    "unit": {
+      "type": "string",
+      "description": "Current course unit."
+    },
+    "topic": {
+      "type": "string",
+      "description": "Current practice topic."
+    },
+    "problem": {
+      "type": "object",
+      "description": "Structured current problem payload."
+    },
+    "attempts": {
+      "type": "array",
+      "description": "Prior student attempts for this problem."
+    },
+    "chatHistory": {
+      "type": "array",
+      "description": "Prior AI Tutor conversation turns for this problem."
+    },
+    "attemptCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "solutionUnlocked": {
+      "type": "boolean"
+    },
+    "helpStatus": {
+      "type": "string",
+      "enum": ["none", "hint", "guided", "solution"]
+    }
+  },
+  "required": ["studentMessage"]
+}
