@@ -12,6 +12,8 @@ class RuntimeState(Enum):
     ANSWER_VERIFICATION = "answer_verification"
     SOLUTION_LOCKED = "solution_locked"
     SOLUTION_EXPLANATION = "solution_explanation"
+    HINT_GENERATION = "hint_generation"
+    SHORT_SOLUTION = "short_solution"
     HOMEWORK_REVIEW = "homework_review"
     EXAM_MODE = "exam_mode"
     TUTOR_REVIEW = "tutor_review"
@@ -23,6 +25,8 @@ RUNTIME_PROMPT_FILES = {
     RuntimeState.ANSWER_VERIFICATION: PROMPT_ROOT / "runtime" / "answer_verification.txt",
     RuntimeState.SOLUTION_LOCKED: PROMPT_ROOT / "runtime" / "solution_locked.txt",
     RuntimeState.SOLUTION_EXPLANATION: PROMPT_ROOT / "runtime" / "solution_explanation.txt",
+    RuntimeState.HINT_GENERATION: PROMPT_ROOT / "runtime" / "hint_generation.txt",
+    RuntimeState.SHORT_SOLUTION: PROMPT_ROOT / "runtime" / "short_solution.txt",
     RuntimeState.HOMEWORK_REVIEW: PROMPT_ROOT / "runtime" / "homework_review.txt",
     RuntimeState.EXAM_MODE: PROMPT_ROOT / "runtime" / "exam_mode.txt",
     RuntimeState.TUTOR_REVIEW: PROMPT_ROOT / "runtime" / "tutor_review.txt",
@@ -31,6 +35,10 @@ RUNTIME_PROMPT_FILES = {
 
 
 def determine_runtime_state(session):
+    if session.action_mode == "hint":
+        return RuntimeState.HINT_GENERATION
+    if session.action_mode == "solution":
+        return RuntimeState.SHORT_SOLUTION
     message = session.student_message.lower()
     if asks_for_answer_verification(message):
         return RuntimeState.ANSWER_VERIFICATION

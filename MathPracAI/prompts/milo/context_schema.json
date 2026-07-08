@@ -18,7 +18,7 @@
       "type": "object",
       "description": "Structured current problem payload."
     },
-    "attempts": {
+    "curAttempt": {
       "type": "array",
       "description": "Prior student attempts for this problem."
     },

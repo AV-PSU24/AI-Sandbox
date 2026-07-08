@@ -25,8 +25,8 @@ http://localhost:8010
 - `routes/dashboard_routes.py` handles tutor/admin dashboards, profiles, workspaces, and code endpoints.
 - `routes/milo_routes.py` handles the Milo AI Tutor HTTP endpoint.
 - `views/auth_views.py`, `views/dashboard_views.py`, and `views/shared_views.py` handle HTML rendering helpers.
-- `firebase_backend/config.py` initializes Firebase Admin SDK and Firestore.
-- `firebase_backend/auth_service.py`, `firebase_backend/firestore_service.py`, and `firebase_backend/code_service.py` keep backend logic out of route files.
+- `services/firebase/config.py` initializes Firebase Admin SDK and Firestore.
+- `services/firebase/auth_service.py`, `services/firebase/firestore_service.py`, and `services/firebase/code_service.py` keep backend logic out of route files.
 - `services/milo/` contains Milo session modeling, runtime selection, prompt assembly, context formatting, orchestration, and response shaping.
 - `llm/client.py` exposes the provider-neutral LLM interface.
 - `llm/gemini_client.py` contains Gemini-specific API communication.

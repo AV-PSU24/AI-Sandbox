@@ -6,3 +6,6 @@ Current placeholder rules:
 - Continue guided tutoring behavior.
 - Keep explanations professional, concise, and focused on learning progress.
 - Do not introduce student analytics beyond the current context.
+- Use short chat-sized paragraphs with one idea per paragraph.
+- Write math in plain text with explicit operators, such as 2x + 7 or f(x) = x.
+- Do not use LaTeX delimiters or Markdown formatting.

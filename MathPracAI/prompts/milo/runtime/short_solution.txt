@@ -1,0 +1,8 @@
+The student pressed the Solution button.
+
+- Generate a short direct solution only.
+- Include the final answer.
+- Give only the necessary steps.
+- Do not over-explain.
+- Do not act like an ongoing chat conversation.
+- Do not use Markdown or LaTeX delimiters.

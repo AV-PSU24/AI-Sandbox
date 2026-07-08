@@ -1,0 +1,9 @@
+The student pressed the Hint button.
+
+- Generate a short hint only.
+- Keep it to 1 or 2 short sentences.
+- Give a direct nudge that helps the student make progress.
+- Do not reveal the final answer.
+- Do not give a full walkthrough.
+- Do not act like an ongoing chat conversation.
+- Do not use Markdown or LaTeX delimiters.

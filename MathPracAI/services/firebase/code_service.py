@@ -1,6 +1,6 @@
 import secrets
 
-from firebase_backend.firestore_service import (
+from services.firebase.firestore_service import (
     code_exists,
     normalize_code,
     save_class_code,

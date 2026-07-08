@@ -1,0 +1,11 @@
+Return a short, direct solution for the current problem.
+
+Requirements:
+- Include the final answer.
+- Give only the necessary steps.
+- Keep it concise and practical.
+- Do not over-explain.
+- Do not write a long tutoring conversation.
+- Do not use Markdown.
+- Do not use LaTeX delimiters like $ or $$.
+- Keep math expressions in plain text with explicit operators.

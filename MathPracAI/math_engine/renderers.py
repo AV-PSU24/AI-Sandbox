@@ -72,7 +72,7 @@ TOPIC_CONFIG_SECTIONS_BY_TOPIC = {
         },
         {
             "key": "domainRestrictions",
-            "label": "Domain Restrictions",
+            "label": "Restrictions",
             "options": (
                 ("none", "No restriction"),
                 ("restricted_interval", "Restricted interval"),
@@ -913,6 +913,9 @@ def icon(name):
         "skip-forward": """<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/>""",
         "eye": """<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>""",
         "arrow-right": """<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>""",
+        "send": """<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>""",
+        "minimize": """<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>""",
+        "book-open": """<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3Z"/><path d="M21 18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3Z"/>""",
     }
     return f"""<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{paths.get(name, "")}</svg>"""
 
@@ -975,6 +978,7 @@ def page_context(state, units, generators, valid_topic_for_unit, count_value):
         topic = units[unit]["topics"][0][0]
 
     problem = state.get("problem")
+    unavailable_message = state.get("unavailable_message", "")
     feedback = state.get("feedback", "")
     feedback_type = state.get("feedback_type", "empty")
     hint_visible = state.get("hint_visible", "") == "true"
@@ -985,6 +989,14 @@ def page_context(state, units, generators, valid_topic_for_unit, count_value):
     skip_count = count_value(state, "skip_count")
     problem_counted = state.get("problem_counted", "")
     problem_help_status = state.get("problem_help_status", "none")
+    problem_attempts = state.get("problem_attempts", "[]")
+    milo_hint_text = state.get("milo_hint_text", "")
+    milo_solution_text = state.get("milo_solution_text", "")
+    try:
+        attempt_count = len(json.loads(problem_attempts))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        attempt_count = 0
+    answer_values = state.get("answer_values") if isinstance(state.get("answer_values"), dict) else {}
     generated = state.get("generated", "") == "true"
     active_question_view = state.get("active_question_view", "equation")
     question_view_options = question_view_options_for_topic(topic)
@@ -1012,33 +1024,23 @@ def page_context(state, units, generators, valid_topic_for_unit, count_value):
     test_topics = tuple(value for value in raw_test_topics if "|" in value) or (f"{unit}|{topic}",)
     test_breakdown = state.get("test_breakdown", "{}")
 
-    if problem is None:
-        selected_question_views = tuple(
-            view for view, selected in question_view_selections.items() if selected
-        ) or default_question_view_values(topic)
-        presentation = active_question_view if active_question_view in selected_question_views else selected_question_views[0]
-        problem = generators[topic](
-            "easy",
+    problem_presentation = None
+    if problem is not None:
+        problem_presentation = get_problem_presentation(
+            problem,
             {
-                "topic_config": problem_config_selections,
-                "questionViews": (presentation,),
+                "available_views": available_question_views,
+                "selected_view": active_question_view,
             },
         )
-
-    problem_presentation = get_problem_presentation(
-        problem,
-        {
-            "available_views": available_question_views,
-            "selected_view": active_question_view,
-        },
-    )
-    active_question_view = problem_presentation["selectedView"]
+        active_question_view = problem_presentation["selectedView"]
 
     return {
         "unit": unit,
         "topic": topic,
         "problem": problem,
         "problem_presentation": problem_presentation,
+        "unavailable_message": unavailable_message,
         "feedback": feedback,
         "feedback_type": feedback_type,
         "hint_visible": hint_visible,
@@ -1049,6 +1051,11 @@ def page_context(state, units, generators, valid_topic_for_unit, count_value):
         "skip_count": skip_count,
         "problem_counted": problem_counted,
         "problem_help_status": problem_help_status,
+        "problem_attempts": problem_attempts,
+        "attempt_count": attempt_count,
+        "milo_hint_text": milo_hint_text,
+        "milo_solution_text": milo_solution_text,
+        "answer_values": answer_values,
         "generated": generated,
         "active_question_view": active_question_view,
         "question_view_options": question_view_options,
@@ -1181,6 +1188,8 @@ def render_answer_form(context):
     unit = context["unit"]
     topic = context["topic"]
     problem = context["problem"]
+    if problem is None:
+        return ""
     hint_visible = context["hint_visible"]
     solution_visible = context["solution_visible"]
     answered = context["answered"]
@@ -1198,7 +1207,12 @@ def render_answer_form(context):
             primary_label = "Finish Test"
     elif primary_action == "check":
         primary_label = "Check Answer"
-    answer_controls = render_answer_controls(context["problem_presentation"])
+    input_disabled = correct_checked or solution_visible
+    answer_controls = render_answer_controls(
+        context["problem_presentation"],
+        context["answer_values"],
+        input_disabled,
+    )
     problem_config_inputs = render_problem_config_hidden_inputs(context)
     test_hidden_inputs = render_test_hidden_inputs(context)
     test_mode = context["ui_mode"] == "test_progress"
@@ -1224,6 +1238,9 @@ def render_answer_form(context):
           <input type="hidden" name="skip_count" value="{context["skip_count"]}">
           <input type="hidden" name="problem_counted" value="{escape(context["problem_counted"])}">
           <input type="hidden" name="problem_help_status" value="{escape(context["problem_help_status"])}">
+          <input type="hidden" name="problem_attempts" value="{escape(context["problem_attempts"])}">
+          <input type="hidden" name="milo_hint_text" value="{escape(context["milo_hint_text"])}">
+          <input type="hidden" name="milo_solution_text" value="{escape(context["milo_solution_text"])}">
           <input type="hidden" name="generated" value="{str(generated).lower()}">
           <input type="hidden" name="question_view_equation" value="{str(context["question_view_selections"].get("equation", False)).lower()}">
           <input type="hidden" name="question_view_graph" value="{str(context["question_view_selections"].get("graph", False)).lower()}">
@@ -1265,41 +1282,46 @@ def render_test_hidden_inputs(context):
           {topic_inputs}"""
 
 
-def render_answer_controls(presentation):
+def render_answer_controls(presentation, answer_values=None, disabled=False):
+    answer_values = answer_values or {}
     fields = presentation["answerFields"]
     if len(fields) == 1:
-        return render_answer_control(fields[0], "user_answer")
+        return render_answer_control(fields[0], "user_answer", value=answer_values.get("user_answer", ""), disabled=disabled)
 
     return f"""<div class="answer-fields">
-              {''.join(render_labeled_answer_control(field) for field in fields)}
+              {''.join(render_labeled_answer_control(field, answer_values, disabled) for field in fields)}
             </div>"""
 
 
-def render_labeled_answer_control(field):
+def render_labeled_answer_control(field, answer_values=None, disabled=False):
+    answer_values = answer_values or {}
     field_name = field.get("name", "answer")
     field_id = f"answer_{field_name}"
     return f"""<div class="answer-field">
                 <label for="{escape(field_id)}">{escape(field.get("label", "Answer"))}</label>
                 <div class="answer-field-row">
-                  {render_answer_control(field, field_name, field_id)}
+                  {render_answer_control(field, field_name, field_id, answer_values.get(field_name, ""), disabled)}
                 </div>
               </div>"""
 
 
-def render_answer_control(field, field_name, field_id="user_answer"):
+def render_answer_control(field, field_name, field_id="user_answer", value="", disabled=False):
     helpers = field.get("helpers") if isinstance(field, dict) else None
-    helper_buttons = render_answer_helpers(helpers if isinstance(helpers, list) else [])
-    return f"""<div class="answer-input-shell">
-                  <input id="{escape(field_id)}" name="{escape(field_name)}" type="{escape(field.get("type", "text"))}" autocomplete="off" placeholder="type answer">
+    helper_buttons = render_answer_helpers(helpers if isinstance(helpers, list) else [], disabled)
+    disabled_attr = " disabled" if disabled else ""
+    disabled_class = " is-disabled" if disabled else ""
+    return f"""<div class="answer-input-shell{disabled_class}">
+                  <input id="{escape(field_id)}" name="{escape(field_name)}" type="{escape(field.get("type", "text"))}" autocomplete="off" placeholder="type answer" value="{escape(str(value or ""))}"{disabled_attr}>
                   {helper_buttons}
                 </div>"""
 
 
-def render_answer_helpers(helpers):
+def render_answer_helpers(helpers, disabled=False):
     if not helpers:
         return ""
+    disabled_attr = " disabled" if disabled else ""
     buttons = "".join(
-        f'<button type="button" data-answer-helper="{escape(str(helper))}">{escape(str(helper))}</button>'
+        f'<button type="button" data-answer-helper="{escape(str(helper))}"{disabled_attr}>{escape(str(helper))}</button>'
         for helper in helpers
     )
     return f'<div class="answer-helper-row">{buttons}</div>'
@@ -1317,13 +1339,16 @@ def render_feedback(context):
 
 def render_help_stack(context):
     problem = context["problem"]
+    if problem is None:
+        return ""
     hint_visible = context["hint_visible"]
     solution_visible = context["solution_visible"]
-    hint_html = f'<div class="help-box hint-box">{render_math_text(problem.hint)}</div>' if hint_visible else ""
-    solution_text = f"{problem.solution} Answer: {problem.answer}"
-    solution_html = f'<div class="help-box solution-box">{render_math_text(solution_text)}</div>' if solution_visible else ""
+    hint_text = context.get("milo_hint_text") or problem.hint
+    solution_text = context.get("milo_solution_text") or f"{problem.solution} Answer: {problem.answer}"
+    hint_html = f'<div class="help-box hint-box" data-help-box="hint">{render_math_text(hint_text)}</div>' if hint_visible else ""
+    solution_html = f'<div class="help-box solution-box" data-help-box="solution">{render_math_text(solution_text)}</div>' if solution_visible else ""
 
-    return f"""        <div class="help-stack">
+    return f"""        <div class="help-stack" data-help-stack>
           {hint_html}
           {solution_html}
         </div>"""
@@ -1335,6 +1360,153 @@ def render_stats(context):
           <span class="stat-hints">Hints: {context["hint_count"]}</span>
           <span class="stat-skips">Skips: {context["skip_count"]}</span>
         </div>"""
+
+
+def render_milo_avatar(emotion="greeting", size=64, animate=False):
+    tilts = {
+        "greeting": 0,
+        "thinking": -8,
+        "encouraging": 3,
+        "celebrating": 6,
+        "explaining": 0,
+        "confused": -12,
+        "great": 5,
+        "reading": -4,
+    }
+    emotion = emotion if emotion in tilts else "greeting"
+    tilt = tilts[emotion]
+    animation_class = " milo-float" if animate else ""
+    sparkles = emotion in ("celebrating", "great")
+    question = emotion == "confused"
+    thought = emotion in ("thinking", "reading")
+    extras = ""
+    if sparkles:
+        extras += """
+          <text x="8" y="40" font-size="14" fill="#FFD700">✦</text>
+          <text x="78" y="32" font-size="10" fill="#FFD700">✦</text>
+          <text x="82" y="55" font-size="8" fill="#FFD700">✧</text>"""
+    if question:
+        extras += """
+          <text x="78" y="38" font-size="18" font-weight="bold" fill="#5B5FD9" font-family="Georgia,serif">?</text>"""
+    if thought:
+        extras += """
+          <circle cx="80" cy="52" r="3.5" fill="#d0d0e0" fill-opacity="0.7"/>
+          <circle cx="87" cy="44" r="5" fill="#d0d0e0" fill-opacity="0.7"/>
+          <circle cx="92" cy="35" r="7" fill="#d0d0e0" fill-opacity="0.7"/>"""
+
+    return f"""<svg class="milo-avatar-svg{animation_class}" viewBox="0 0 100 130" width="{size}" height="{int(size * 1.3)}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <g transform="rotate({tilt}, 50, 80)">
+          <ellipse cx="50" cy="122" rx="26" ry="5" fill="#111118" fill-opacity="0.12"/>
+          <rect x="14" y="48" width="72" height="68" rx="16" fill="#111118"/>
+          <text x="50" y="97" text-anchor="middle" font-family="system-ui,sans-serif" font-size="28" font-weight="800" fill="white" fill-opacity="0.9">M</text>
+          <rect x="22" y="32" width="56" height="10" rx="3" fill="#111118"/>
+          <rect x="32" y="18" width="36" height="18" rx="5" fill="#1a1a24"/>
+          <line x1="72" y1="37" x2="80" y2="52" stroke="#111118" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="80" cy="55" r="4.5" fill="#111118"/>
+          <rect x="2" y="68" width="16" height="10" rx="5" fill="#111118"/>
+          <rect x="82" y="68" width="16" height="10" rx="5" fill="#111118"/>
+          <rect x="24" y="112" width="18" height="12" rx="6" fill="#111118"/>
+          <rect x="58" y="112" width="18" height="12" rx="6" fill="#111118"/>
+        </g>
+        {extras}
+      </svg>"""
+
+
+def milo_problem_context(context, unit_label, topic_label):
+    problem = context["problem"]
+    presentation = context["problem_presentation"]
+    graph = problem.graph_config if isinstance(problem.graph_config, dict) and problem.graph_config.get("enabled") else None
+    problem_data = {
+        "prompt": problem.prompt,
+        "question": problem.question,
+        "display_equation": problem.display_equation,
+        "answerType": ", ".join(field.get("label", "Answer") for field in problem.answer_fields) or "Answer",
+        "topic": problem.topic,
+        "problem_type": problem.problem_type,
+        "graph": graph,
+        "selectedView": presentation.get("selectedView", ""),
+        "officialAnswer": problem.answer,
+        "officialSolution": problem.solution,
+    }
+    try:
+        attempts = json.loads(context.get("problem_attempts", "[]"))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        attempts = []
+    if not isinstance(attempts, list):
+        attempts = []
+
+    return {
+        "unit": unit_label(context["unit"]),
+        "topic": topic_label(context["topic"]),
+        "problem": problem_data,
+        "curAttempt": attempts,
+        "currentAnswers": context["answer_values"],
+        "chatHistory": [],
+        "activeRepresentation": context["active_question_view"],
+        "attemptCount": context.get("attempt_count", len(attempts)),
+        "solutionUnlocked": context["problem_help_status"] == "solution",
+        "helpStatus": context["problem_help_status"],
+    }
+
+
+def render_milo_chat(context, unit_label, topic_label):
+    if context["problem"] is None:
+        return ""
+    milo_context = escape(json.dumps(milo_problem_context(context, unit_label, topic_label)))
+    return f"""    <section class="milo-root" data-milo data-milo-context="{milo_context}" aria-label="Milo AI Tutor">
+      <div class="milo-nudge milo-float" data-milo-nudge hidden>
+        <p>Stuck? Try talking to Milo.</p>
+        <span class="milo-nudge-arrow" aria-hidden="true"></span>
+      </div>
+      <button class="milo-launcher milo-enter" type="button" data-milo-open title="Chat with Milo" aria-label="Chat with Milo" aria-expanded="false">
+        <span class="milo-launcher-avatar">{render_milo_avatar("greeting", 52, animate=True)}</span>
+        <span>Ask Milo</span>
+      </button>
+
+      <div class="milo-panel" data-milo-panel hidden>
+        <div class="milo-card">
+          <header class="milo-header">
+            <div class="milo-header-avatar">M</div>
+            <div class="milo-title">
+              <strong>Milo</strong>
+              <span>Your AI math tutor</span>
+            </div>
+            <div class="milo-online" aria-label="Milo is online"><span></span>online</div>
+            <button class="milo-minimize" type="button" data-milo-close aria-label="Minimize Milo">{icon("minimize")}</button>
+          </header>
+
+          <div class="milo-body">
+            <aside class="milo-character" aria-hidden="true">
+              <div data-milo-avatar>{render_milo_avatar("greeting", 72, animate=True)}</div>
+              <p data-milo-emotion>greeting</p>
+            </aside>
+
+            <div class="milo-chat">
+              <div class="milo-messages" data-milo-messages>
+                <div class="milo-message-row milo-msg-in is-milo">
+                  <div class="milo-message">Hey! I'm Milo, your AI math tutor. I'm here whenever you need a hint, explanation, or want to think through a problem together.</div>
+                </div>
+                <div class="milo-message-row milo-msg-in is-milo">
+                  <div class="milo-message">What can I help you with on this problem?</div>
+                </div>
+              </div>
+
+              <form class="milo-input-row" data-milo-form>
+                <input type="text" data-milo-input placeholder="Ask a question or request help..." autocomplete="off">
+                <button type="submit" data-milo-send aria-label="Send message">{icon("send")}</button>
+              </form>
+
+              <div class="milo-quick-actions" aria-label="Milo quick actions">
+                <button type="button" data-milo-quick="Can you give me a hint?">{icon("lightbulb")}Give me a hint</button>
+                <button type="button" data-milo-quick="Can you show me a similar example?">{icon("book-open")}Show a similar example</button>
+                <button type="button" data-milo-quick="Can you walk me through this step by step?">{icon("skip-forward")}Walk me through it</button>
+                <button type="button" data-milo-quick="Can you ask me a guiding question instead of giving the answer?">{icon("eye")}Ask a question</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>"""
 
 
 def render_breadcrumb(context, unit_label, topic_label):
@@ -1350,6 +1522,18 @@ def render_breadcrumb(context, unit_label, topic_label):
 def render_problem_panel(context, unit_label, topic_label):
     answer_form = render_answer_form(context)
     stats = render_stats(context)
+    if context["problem"] is None:
+        message = context.get("unavailable_message") or "No problems available for the selected options."
+        return f"""      <section class="problem-panel" aria-live="polite">
+        {render_breadcrumb(context, unit_label, topic_label)}
+        <div class="problem-stack">
+          <div class="question-card unavailable-view">
+            <h1>{escape(message)}</h1>
+          </div>
+          {stats}
+        </div>
+      </section>"""
+
     question_html, graph = render_problem_view(context["problem_presentation"])
     view_class = "graph-view" if graph else "text-view"
 
@@ -1384,7 +1568,12 @@ def render_test_top_bar(context):
 
 
 def render_test_progress_page(context, unit_label, topic_label):
-    question_html, graph = render_problem_view(context["problem_presentation"])
+    if context["problem"] is None:
+        message = context.get("unavailable_message") or "No problems available for the selected options."
+        question_html = escape(message)
+        graph = ""
+    else:
+        question_html, graph = render_problem_view(context["problem_presentation"])
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1666,6 +1855,7 @@ def render_page(state, units, generators, unit_label, topic_label, valid_topic_f
     control_panel = render_control_panel(context, units)
     problem_panel = render_problem_panel(context, unit_label, topic_label)
     test_modal = render_test_setup_modal(context, units)
+    milo_chat = render_milo_chat(context, unit_label, topic_label)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -1685,6 +1875,7 @@ def render_page(state, units, generators, unit_label, topic_label, valid_topic_f
 {problem_panel}
     </section>
 {test_modal}
+{milo_chat}
   </main>
 </body>
 </html>"""

@@ -11,7 +11,7 @@
       }
     ]
   },
-  "attempts": [
+  "curAttempt": [
     {
       "value": "8",
       "correct": false

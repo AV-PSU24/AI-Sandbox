@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from config.env import load_environment
 
 
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite"
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 PROVIDER_GEMINI = "gemini"
 
 

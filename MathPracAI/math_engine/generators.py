@@ -85,10 +85,11 @@ class DomainRangeProblemType:
 
     def generate(self, difficulty, options=None):
         constraints = self.normalized_constraints(options)
+        generation_restrictions = self.generation_domain_restrictions(constraints["domainRestrictions"])
         for _attempt in range(100):
             family = random_from(constraints["functionFamilies"])
             style = random_from(constraints["functionStyles"])
-            domain_restriction = random_from(constraints["domainRestrictions"])
+            domain_restriction = random_from(generation_restrictions)
             presentation = random_from(constraints["questionViews"])
             function_data = self.generate_function_data(family, difficulty, style)
             domain_segments = restricted_domain_segments(function_data, domain_restriction)
@@ -105,21 +106,7 @@ class DomainRangeProblemType:
             if self.matches_constraints(data, constraints):
                 return data
 
-        family = constraints["functionFamilies"][0]
-        style = constraints["functionStyles"][0]
-        domain_restriction = constraints["domainRestrictions"][0]
-        function_data = self.generate_function_data(family, difficulty, style)
-        domain_segments = restricted_domain_segments(function_data, domain_restriction)
-        return {
-            "presentation": constraints["questionViews"][0],
-            "question_targets": list(self.question_targets),
-            "function_style": style,
-            "domain_restriction": domain_restriction,
-            "domain_segments": domain_segments or [],
-            "function": function_data,
-            "domain": domain_for(function_data, domain_segments),
-            "range": range_for(function_data, domain_segments),
-        }
+        return None
 
     def normalized_constraints(self, options):
         options = options if isinstance(options, dict) else {}
@@ -135,9 +122,18 @@ class DomainRangeProblemType:
         return (
             data["function"]["family"] in constraints["functionFamilies"]
             and data["function_style"] in constraints["functionStyles"]
-            and data["domain_restriction"] in constraints["domainRestrictions"]
             and data["presentation"] in constraints["questionViews"]
         )
+
+    def generation_domain_restrictions(self, selected_restrictions):
+        restrictions = []
+        if "none" in selected_restrictions or "restricted_interval" in selected_restrictions:
+            restrictions.append("none")
+        if "restricted_interval" in selected_restrictions:
+            restrictions.append("restricted_interval")
+        if "union_of_intervals" in selected_restrictions:
+            restrictions.append("union_of_intervals")
+        return tuple(dict.fromkeys(restrictions)) or ("none",)
 
     def generate_function_data(self, family, difficulty, style):
         if style == "simple":
@@ -880,6 +876,8 @@ def render_domain_range_problem(data, difficulty):
 
 def domain_and_range(difficulty, options=None):
     data = DOMAIN_RANGE_PROBLEM_TYPE.generate(difficulty, options)
+    if data is None:
+        return None
     return render_domain_range_problem(data, difficulty)
 
 

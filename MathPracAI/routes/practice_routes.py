@@ -3,10 +3,14 @@ import json
 
 from flask import Blueprint, redirect, request, url_for
 
-from firebase_backend.auth_service import current_user_profile, require_login
-from firebase_backend.firestore_service import record_completed_test_result
+from services.firebase.auth_service import current_user_profile, require_login
+from services.firebase.firestore_service import record_completed_test_result
 from math_engine.generators import GENERATORS
 from math_engine.models import problem_from_form
+from math_engine.problem_contracts import (
+    UNAVAILABLE_PROBLEM_MESSAGE,
+    validate_problem_contract,
+)
 from math_engine.renderers import (
     default_question_view_values,
     render_page,
@@ -31,6 +35,7 @@ UNITS = {
 }
 
 DEFAULT_GENERATION_DIFFICULTY = "easy"
+GENERATION_CONTRACT_ATTEMPTS = 120
 
 
 def topic_label(topic):
@@ -87,6 +92,46 @@ def outcome_for_correct_submission(state):
     return "solved"
 
 
+def decoded_problem_attempts(value):
+    try:
+        attempts = json.loads(value or "[]")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        attempts = []
+    return attempts if isinstance(attempts, list) else []
+
+
+def encoded_problem_attempts(attempts):
+    return json.dumps(attempts if isinstance(attempts, list) else [], separators=(",", ":"))
+
+
+def problem_attempt_count(state):
+    attempts = decoded_problem_attempts(state.get("problem_attempts", "[]"))
+    return len(attempts)
+
+
+def append_problem_attempt(state, user_answer, result, feedback):
+    attempts = decoded_problem_attempts(state.get("problem_attempts", "[]"))
+    attempts.append(
+        {
+            "studentResponse": user_answer,
+            "applicationResult": result,
+            "feedback": feedback,
+        }
+    )
+    state["problem_attempts"] = encoded_problem_attempts(attempts)
+    state["attempt_count"] = str(len(attempts))
+
+
+def reset_problem_attempts(state):
+    state["problem_attempts"] = "[]"
+    state["attempt_count"] = "0"
+
+
+def carry_problem_attempts(state, data):
+    state["problem_attempts"] = data.get("problem_attempts", "[]")
+    state["attempt_count"] = str(problem_attempt_count(state))
+
+
 def question_view_field(view):
     return f"question_view_{view}"
 
@@ -126,8 +171,54 @@ def generation_options(state):
     }
 
 
+def generation_options_for_view(topic_config, view, selected_views=None):
+    return {
+        "topic_config": topic_config,
+        "questionViews": (view,),
+        "selectedQuestionViews": tuple(selected_views or (view,)),
+    }
+
+
+def ordered_generation_views(state, topic):
+    selected = selected_question_views(state, topic)
+    active = state.get("active_question_view")
+    if active not in selected:
+        active = selected[0]
+    return (active,) + tuple(view for view in selected if view != active)
+
+
 def generate_problem(topic, state):
-    return GENERATORS[topic](DEFAULT_GENERATION_DIFFICULTY, generation_options(state))
+    topic_config = selected_topic_config_values(state, topic)
+    selected_views = selected_question_views(state, topic)
+    last_contract = None
+    for view in ordered_generation_views(state, topic):
+        options = generation_options_for_view(topic_config, view, selected_views)
+        for _attempt in range(GENERATION_CONTRACT_ATTEMPTS):
+            candidate = GENERATORS[topic](DEFAULT_GENERATION_DIFFICULTY, options)
+            contract = validate_problem_contract(candidate, topic, options, view)
+            last_contract = contract
+            if contract.valid:
+                state["active_question_view"] = view
+                return candidate
+    state["last_contract_failure"] = last_contract
+    return None
+
+
+def apply_unavailable_problem_state(state):
+    state["problem"] = None
+    state["answer"] = ""
+    state["unavailable_message"] = UNAVAILABLE_PROBLEM_MESSAGE
+    state["milo_hint_text"] = ""
+    state["milo_solution_text"] = ""
+
+
+def set_generated_problem_state(state, problem):
+    if problem is None:
+        apply_unavailable_problem_state(state)
+        return
+    state["problem"] = problem
+    state["answer"] = problem.answer
+    state["unavailable_message"] = ""
 
 
 def reset_for_new_problem(state):
@@ -138,18 +229,24 @@ def reset_for_new_problem(state):
     state["topic"] = topic
     apply_question_view_state(state, choose_new_active=True)
     next_problem = generate_problem(topic, state)
-    state["problem"] = next_problem
-    state["answer"] = next_problem.answer
+    set_generated_problem_state(state, next_problem)
     state["hint_visible"] = ""
     state["solution_visible"] = ""
     state["answered"] = ""
     state["problem_counted"] = ""
     state["problem_help_status"] = "none"
+    reset_problem_attempts(state)
+    state["milo_hint_text"] = ""
+    state["milo_solution_text"] = ""
     state["feedback"] = ""
     state["feedback_type"] = "empty"
 
 
 def render_app_page(state):
+    topic = state.get("topic") if state.get("topic") in GENERATORS else "evaluating_functions"
+    if state.get("problem") is None and not state.get("unavailable_message"):
+        apply_question_view_state(state, choose_new_active=True)
+        set_generated_problem_state(state, generate_problem(topic, state))
     apply_question_view_state(state)
     state["auth_user"] = current_user_profile()
     return render_page(
@@ -187,6 +284,13 @@ def user_answer_from_form(data, problem):
     fields = problem.answer_fields or []
     if len(fields) <= 1:
         return data.get("user_answer", "")
+    return {field.get("name", ""): data.get(field.get("name", ""), "") for field in fields}
+
+
+def answer_values_from_form(data, problem):
+    fields = problem.answer_fields or []
+    if len(fields) <= 1:
+        return {"user_answer": data.get("user_answer", "")}
     return {field.get("name", ""): data.get(field.get("name", ""), "") for field in fields}
 
 
@@ -312,7 +416,7 @@ def generate():
     query["topic"] = topic
     add_ui_state(query, query)
     apply_question_view_state(query, choose_new_active=True)
-    query["problem"] = generate_problem(topic, query)
+    set_generated_problem_state(query, generate_problem(topic, query))
     query["feedback"] = ""
     query["feedback_type"] = "empty"
     query["hint_visible"] = ""
@@ -320,6 +424,9 @@ def generate():
     query["answered"] = ""
     query["problem_counted"] = ""
     query["problem_help_status"] = "none"
+    reset_problem_attempts(query)
+    query["milo_hint_text"] = ""
+    query["milo_solution_text"] = ""
     query["generated"] = "true"
     return render_app_page(query)
 
@@ -345,10 +452,16 @@ def check():
         "problem_counted": data.get("problem_counted", ""),
         "problem_help_status": data.get("problem_help_status", "none"),
         "generated": data.get("generated", "true"),
+        "answer_values": answer_values_from_form(data, problem),
+        "problem_attempts": data.get("problem_attempts", "[]"),
+        "attempt_count": "0",
+        "milo_hint_text": data.get("milo_hint_text", ""),
+        "milo_solution_text": data.get("milo_solution_text", ""),
         "question_view_equation": data.get("question_view_equation", ""),
         "question_view_graph": data.get("question_view_graph", ""),
         "active_question_view": data.get("active_question_view", ""),
     }
+    carry_problem_attempts(state, data)
     add_ui_state(state, data)
     for field_name in topic_config_field_names():
         if field_name in data:
@@ -394,9 +507,11 @@ def check():
             state["test_correct"] = str(count_value(state, "test_correct") + 1)
             add_breakdown_result(state, "correct")
     else:
-        state["feedback"] = "Not quite. Try again or open the hint."
+        feedback = "Not quite. Try again or open the hint."
+        state["feedback"] = feedback
         state["feedback_type"] = "incorrect"
         state["answered"] = "true"
+        append_problem_attempt(state, user_answer, "Incorrect", feedback)
         if state.get("ui_mode") == "test_progress":
             state["test_incorrect"] = str(count_value(state, "test_incorrect") + 1)
             add_breakdown_result(state, "incorrect")

@@ -6,8 +6,8 @@ from urllib.request import Request, urlopen
 
 from flask import redirect, session, url_for
 
-from firebase_backend.config import FirebaseUnavailable, initialize_firebase
-from firebase_backend.firestore_service import get_user_profile, touch_last_active
+from services.firebase.config import FirebaseUnavailable, initialize_firebase
+from services.firebase.firestore_service import get_user_profile, touch_last_active
 
 
 try:

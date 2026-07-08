@@ -1,10 +1,10 @@
 from flask import Blueprint, jsonify, redirect, request, url_for
 
-from firebase_backend.auth_service import current_user_profile, require_role
-from firebase_backend.code_service import CodeGenerationError, create_class_code, create_tutor_invite_code
+from services.firebase.auth_service import current_user_profile, require_role
+from services.firebase.code_service import CodeGenerationError, create_class_code, create_tutor_invite_code
 from views.dashboard_views import render_dashboard_page
-from firebase_backend.config import FirebaseUnavailable
-from firebase_backend.firestore_service import (
+from services.firebase.config import FirebaseUnavailable
+from services.firebase.firestore_service import (
     activate_workspace_item,
     close_workspace_item,
     get_student,

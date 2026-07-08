@@ -1,4 +1,4 @@
-from firebase_backend.config import FirebaseUnavailable, firestore_client, server_timestamp
+from services.firebase.config import FirebaseUnavailable, firestore_client, server_timestamp
 
 try:
     from google.cloud.firestore_v1 import FieldFilter

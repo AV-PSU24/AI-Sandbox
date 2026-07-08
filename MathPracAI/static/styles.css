@@ -17,6 +17,7 @@
   --warning: #d97706;
   --radius: 12px;
   --shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  --milo-side-width: clamp(500px, 34vw, 580px);
 }
 
 * {
@@ -90,6 +91,22 @@ input:disabled {
   display: flex;
   min-height: 100vh;
   overflow: hidden;
+  transition: margin-right 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-frame.milo-is-open .generator {
+  margin-right: 0;
+}
+
+@media (min-width: 1360px) {
+  .app-frame.milo-is-open .generator {
+    margin-right: var(--milo-side-width);
+  }
+
+  .app-frame.milo-is-open .problem-stack,
+  .app-frame.milo-is-open .breadcrumb {
+    margin-right: 0;
+  }
 }
 
 .sidebar-shell {
@@ -345,6 +362,43 @@ input:disabled {
   color: #ffffff;
 }
 
+.btn-accent[data-loading="true"],
+.btn-accent[data-loading="true"]:disabled {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-foreground);
+  opacity: 1;
+  box-shadow: var(--shadow);
+}
+
+.btn-loading-dots {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 40px;
+}
+
+.btn-loading-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.35;
+}
+
+.btn-loading-dots span:nth-child(1) {
+  animation: milo-think-dot 1.1s ease-in-out 0s infinite;
+}
+
+.btn-loading-dots span:nth-child(2) {
+  animation: milo-think-dot 1.1s ease-in-out 0.16s infinite;
+}
+
+.btn-loading-dots span:nth-child(3) {
+  animation: milo-think-dot 1.1s ease-in-out 0.32s infinite;
+}
+
 .btn-secondary {
   background: #ffffff;
   color: var(--foreground);
@@ -432,6 +486,13 @@ input:disabled {
   font-size: 21px;
   font-style: normal;
   font-weight: 600;
+}
+
+.question-card.unavailable-view h1 {
+  color: var(--muted-foreground);
+  font-family: "Outfit", system-ui, sans-serif;
+  font-size: 24px;
+  font-style: normal;
 }
 
 .graph-card {
@@ -562,6 +623,11 @@ input:disabled {
   box-shadow: 0 0 0 3px rgba(91, 95, 217, 0.14);
 }
 
+.answer-input-shell.is-disabled {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+
 .answer-input-shell input {
   flex: 1;
   min-width: 0;
@@ -571,6 +637,12 @@ input:disabled {
   font-family: "DM Mono", ui-monospace, monospace;
   font-size: 14px;
   outline: none;
+}
+
+.answer-input-shell input:disabled {
+  color: var(--muted-foreground);
+  opacity: 1;
+  -webkit-text-fill-color: var(--muted-foreground);
 }
 
 .answer-helper-row {
@@ -692,6 +764,431 @@ input:disabled {
 
 .grade-good {
   color: var(--accent);
+}
+
+@keyframes milo-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes milo-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes milo-chat-open {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes milo-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes milo-think-dot {
+  0%, 80%, 100% {
+    opacity: 0.2;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.milo-float {
+  animation: milo-float 3.2s ease-in-out infinite;
+}
+
+.milo-enter {
+  animation: milo-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.milo-chat-open {
+  animation: milo-chat-open 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.milo-msg-in {
+  animation: milo-msg-in 0.25s ease-out both;
+}
+
+.milo-root {
+  position: relative;
+  z-index: 40;
+}
+
+.milo-avatar-svg {
+  display: block;
+  overflow: visible;
+}
+
+.milo-launcher {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: rgba(17, 17, 24, 0.5);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: color 150ms ease, transform 150ms ease;
+}
+
+.milo-launcher:hover {
+  color: rgba(17, 17, 24, 0.85);
+  transform: translateY(-1px);
+}
+
+.milo-launcher-avatar {
+  display: block;
+  filter: drop-shadow(0 10px 22px rgba(17, 17, 24, 0.12));
+}
+
+.milo-nudge {
+  position: fixed;
+  right: 104px;
+  bottom: 70px;
+  z-index: 40;
+  max-width: 180px;
+  border: 1px solid rgba(17, 17, 24, 0.08);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(17, 17, 24, 0.14);
+  padding: 10px 12px;
+}
+
+.milo-nudge p {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.milo-nudge-arrow {
+  position: absolute;
+  right: -7px;
+  bottom: 16px;
+  width: 14px;
+  height: 14px;
+  border-top: 1px solid rgba(17, 17, 24, 0.08);
+  border-right: 1px solid rgba(17, 17, 24, 0.08);
+  background: #ffffff;
+  transform: rotate(45deg);
+}
+
+.milo-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  width: var(--milo-side-width);
+  justify-content: stretch;
+  pointer-events: none;
+  transform: translateX(0);
+}
+
+.milo-card {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  background: #ffffff;
+  box-shadow: -18px 0 50px rgba(17, 17, 24, 0.12);
+  pointer-events: auto;
+}
+
+.milo-header {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+}
+
+.milo-header-avatar {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.milo-title {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.milo-title strong {
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.milo-title span,
+.milo-online {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.milo-online {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: 6px;
+  white-space: nowrap;
+}
+
+.milo-online span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #34d399;
+}
+
+.milo-minimize {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted-foreground);
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.milo-minimize:hover {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+
+.milo-minimize .ui-icon,
+.milo-input-row .ui-icon,
+.milo-quick-actions .ui-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.milo-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.milo-character {
+  display: flex;
+  width: 110px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: rgba(240, 240, 244, 0.55);
+  padding: 0 10px 16px;
+}
+
+.milo-character p {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.milo-chat {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.milo-messages {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.milo-message-row {
+  display: flex;
+}
+
+.milo-message-row.is-student {
+  justify-content: flex-end;
+}
+
+.milo-message-row.is-milo {
+  justify-content: flex-start;
+}
+
+.milo-message {
+  max-width: 85%;
+  border-radius: 16px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.milo-message-row.is-milo .milo-message {
+  border-top-left-radius: 4px;
+  background: var(--secondary);
+  color: var(--foreground);
+}
+
+.milo-message-row.is-student .milo-message {
+  border-top-right-radius: 4px;
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.milo-thinking-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+}
+
+.milo-thinking-dots span {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--muted-foreground);
+}
+
+.milo-think-1 {
+  animation: milo-think-dot 1.2s ease-in-out 0s infinite;
+}
+
+.milo-think-2 {
+  animation: milo-think-dot 1.2s ease-in-out 0.2s infinite;
+}
+
+.milo-think-3 {
+  animation: milo-think-dot 1.2s ease-in-out 0.4s infinite;
+}
+
+.milo-input-row {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px 4px;
+}
+
+.milo-input-row input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(240, 240, 244, 0.65);
+  color: var(--foreground);
+  font-size: 13px;
+  padding: 9px 14px;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.milo-input-row input:focus {
+  border-color: rgba(91, 95, 217, 0.4);
+  box-shadow: 0 0 0 3px rgba(91, 95, 217, 0.14);
+}
+
+.milo-input-row button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: var(--shadow);
+  transition: opacity 150ms ease;
+}
+
+.milo-input-row button:hover {
+  opacity: 0.85;
+}
+
+.milo-quick-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 16px 12px;
+}
+
+.milo-quick-actions button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 8px;
+  white-space: nowrap;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.milo-quick-actions button:hover {
+  background: var(--muted);
+  color: var(--foreground);
 }
 
 .test-modal {
@@ -1133,6 +1630,10 @@ input:disabled {
 }
 
 @media (max-width: 860px) {
+  .app-frame.milo-is-open .generator {
+    margin-right: 0;
+  }
+
   .generator {
     display: block;
   }
@@ -1151,6 +1652,22 @@ input:disabled {
 
   .problem-panel {
     padding: 28px 20px;
+  }
+
+  .milo-panel {
+    top: 0;
+    width: min(420px, 100vw);
+  }
+
+  .milo-nudge {
+    right: 88px;
+    bottom: 70px;
+    max-width: 164px;
+  }
+
+  .milo-card {
+    width: 100%;
+    margin: 0;
   }
 
   .primary-results,
@@ -1174,6 +1691,15 @@ input:disabled {
 
   .test-progress-track {
     width: 100%;
+  }
+
+  .milo-card {
+    height: 100vh;
+  }
+
+  .milo-character,
+  .milo-online {
+    display: none;
   }
 
   .primary-results,
@@ -1490,7 +2016,14 @@ input:disabled {
   .auth-symbol,
   .auth-panel-brand,
   .auth-panel-copy,
-  .auth-content-in {
+  .auth-content-in,
+  .milo-float,
+  .milo-enter,
+  .milo-chat-open,
+  .milo-msg-in,
+  .milo-think-1,
+  .milo-think-2,
+  .milo-think-3 {
     animation: none;
     transform: none;
   }

@@ -1,4 +1,5 @@
 import os
+import time
 
 from config.env import load_environment
 from llm.client import (
@@ -28,6 +29,18 @@ class GeminiLLMClient:
         if not prompt:
             raise ValueError("Prompt is required.")
 
+        last_error = None
+        for attempt in range(2):
+            try:
+                return self._generate_text_once(prompt)
+            except Exception as error:
+                if not is_retryable_provider_error(error) or attempt == 1:
+                    raise
+                last_error = error
+                time.sleep(0.4)
+        raise last_error
+
+    def _generate_text_once(self, prompt):
         try:
             response = self._gemini_client().models.generate_content(
                 model=self.model,
@@ -51,3 +64,15 @@ class GeminiLLMClient:
                 ) from error
             self._client = genai.Client(api_key=self.api_key)
         return self._client
+
+
+def is_retryable_provider_error(error):
+    text = str(error).lower()
+    status_code = getattr(error, "status_code", None) or getattr(error, "code", None)
+    return (
+        status_code == 503
+        or "503" in text
+        or "unavailable" in text
+        or "overloaded" in text
+        or "try again later" in text
+    )

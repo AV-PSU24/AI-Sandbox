@@ -34,8 +34,12 @@ def build_attempt_context(session):
     lines.extend(label_block("Attempt Count", str(session.attempt_count)))
     lines.extend(label_block("Solution Unlocked", str(session.solution_unlocked)))
     lines.extend(label_block("Help Status", session.help_status))
-    if session.attempts:
-        for index, attempt in enumerate(session.attempts, 1):
+    if session.current_answers:
+        lines.append("")
+        lines.append("Current Draft Answer")
+        lines.extend(readable_mapping(session.current_answers, indent="- "))
+    if session.cur_attempt:
+        for index, attempt in enumerate(session.cur_attempt, 1):
             if index > 1:
                 lines.append("")
             lines.append(f"Attempt {index}")

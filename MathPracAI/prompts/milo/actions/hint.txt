@@ -1,0 +1,10 @@
+Return a short, direct hint for the current problem.
+
+Requirements:
+- 1 or 2 short sentences only.
+- Help the student notice the key idea.
+- Do not reveal the final answer.
+- Do not give a full walkthrough.
+- Do not use Markdown.
+- Do not use LaTeX delimiters like $ or $$.
+- Keep math expressions in plain text with explicit operators.

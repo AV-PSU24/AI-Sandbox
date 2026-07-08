@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, redirect, request, url_for
 
-from firebase_backend.auth_service import (
+from services.firebase.auth_service import (
     AuthError,
     create_auth_user,
     current_user_profile,
@@ -19,8 +19,8 @@ from views.auth_views import (
     render_tutor_code_step,
     render_tutor_signup,
 )
-from firebase_backend.code_service import class_code_profile, tutor_invite_profile
-from firebase_backend.firestore_service import create_user_profile, mark_tutor_invite_code_used
+from services.firebase.code_service import class_code_profile, tutor_invite_profile
+from services.firebase.firestore_service import create_user_profile, mark_tutor_invite_code_used
 
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -261,7 +261,7 @@ def create_or_login_existing_google_profile(google_user, allow_missing=True):
 
 
 def current_profile_for_uid(uid):
-    from firebase_backend.firestore_service import get_user_profile
+    from services.firebase.firestore_service import get_user_profile
 
     return get_user_profile(uid)
 
